@@ -1,0 +1,8 @@
+{
+    "require": {
+        "sonata-project/google-authenticator": "^2.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6"
+    }
+}
