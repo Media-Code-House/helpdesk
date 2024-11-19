@@ -1,39 +1,66 @@
 <?php
-
-require_once '../config/db.php';
-include  '../views/header.php';
-
-// Verificar si el usuario está autenticado y es administrador
-// Verificar si el usuario está autenticado y es administrador
-if ($_SESSION['rol'] === 'usuario'){
-    // Redirigir a una página específica
-    header("Location: /views/incidencias/user_chat.php");
-    exit;
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
+// Define una función personalizada para manejar redirecciones
+if (!function_exists('custom_redirect')) {
+    function custom_redirect($url)
+    {
+        if (defined('TEST_ENVIRONMENT')) {
+            throw new Exception("Redirect to: $url");
+        }
+        header("Location: $url");
+        exit;
+    }
+}
 
-// Consultar cantidad de incidencias por estado
-$query_estado = "SELECT estado, COUNT(*) as total FROM incidencias GROUP BY estado";
-$stmt_estado = $pdo->prepare($query_estado);
-$stmt_estado->execute();
-$incidencias_por_estado = $stmt_estado->fetchAll(PDO::FETCH_ASSOC);
+// Conexión a la base de datos y encabezado solo en producción
+if (!defined('TEST_ENVIRONMENT')) {
+    require_once __DIR__ . '/../config/db.php';
+    include __DIR__ . '/header.php';
+}
 
-// Consultar cantidad de incidencias por prioridad
-$query_prioridad = "SELECT prioridad, COUNT(*) as total FROM incidencias GROUP BY prioridad";
-$stmt_prioridad = $pdo->prepare($query_prioridad);
-$stmt_prioridad->execute();
-$incidencias_por_prioridad = $stmt_prioridad->fetchAll(PDO::FETCH_ASSOC);
+// Verificar si el usuario está autenticado y es administrador
+if (isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin') {
+    header('Location: /../views/incidencias/user_chat.php');
+}
 
-// Calcular tiempo promedio de resolución para incidencias resueltas usando fecha_actualizacion en lugar de fecha_resolucion
-$query_tiempo_resolucion = "SELECT AVG(TIMESTAMPDIFF(HOUR, fecha_creacion, fecha_actualizacion)) as promedio_horas FROM incidencias WHERE estado = 'resuelto' AND fecha_actualizacion IS NOT NULL";
-$stmt_tiempo_resolucion = $pdo->prepare($query_tiempo_resolucion);
-$stmt_tiempo_resolucion->execute();
-$tiempo_promedio_resolucion = $stmt_tiempo_resolucion->fetch(PDO::FETCH_ASSOC)['promedio_horas'];
+// Valores por defecto para el entorno de prueba
+if (!isset($incidencias_por_estado)) {
+    $incidencias_por_estado = [['estado' => 'pendiente', 'total' => 0]];
+}
 
+if (!isset($incidencias_por_prioridad)) {
+    $incidencias_por_prioridad = [['prioridad' => 'baja', 'total' => 0]];
+}
+
+if (!isset($tiempo_promedio_resolucion)) {
+    $tiempo_promedio_resolucion = 0;
+}
+
+// Consultas reales solo en producción
+if (!defined('TEST_ENVIRONMENT')) {
+    $query_estado = "SELECT estado, COUNT(*) as total FROM incidencias GROUP BY estado";
+    $stmt_estado = $pdo->prepare($query_estado);
+    $stmt_estado->execute();
+    $incidencias_por_estado = $stmt_estado->fetchAll(PDO::FETCH_ASSOC);
+
+    $query_prioridad = "SELECT prioridad, COUNT(*) as total FROM incidencias GROUP BY prioridad";
+    $stmt_prioridad = $pdo->prepare($query_prioridad);
+    $stmt_prioridad->execute();
+    $incidencias_por_prioridad = $stmt_prioridad->fetchAll(PDO::FETCH_ASSOC);
+
+    $query_tiempo_resolucion = "SELECT AVG(TIMESTAMPDIFF(HOUR, fecha_creacion, fecha_actualizacion)) as promedio_horas FROM incidencias WHERE estado = 'resuelto' AND fecha_actualizacion IS NOT NULL";
+    $stmt_tiempo_resolucion = $pdo->prepare($query_tiempo_resolucion);
+    $stmt_tiempo_resolucion->execute();
+    $tiempo_promedio_resolucion = $stmt_tiempo_resolucion->fetch(PDO::FETCH_ASSOC)['promedio_horas'];
+}
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
+
+
+
 
 <!DOCTYPE html>
 <html lang="es">
@@ -97,9 +124,9 @@ $tiempo_promedio_resolucion = $stmt_tiempo_resolucion->fetch(PDO::FETCH_ASSOC)['
             <div class="card-content">
                 <span class="card-title">Generar Reporte de Incidencias</span>
                 <form action="../../reports/pdf/reporte_incidencias.php" method="GET">
-                <label for="estado">Estado:</label>
+                    <label for="estado">Estado:</label>
                     <div class="input-field">
-                        
+
                         <select name="estado" id="estado" class="browser-default">
                             <option value="" disabled selected>Todos</option>
                             <option value="pendiente">Pendiente</option>
@@ -110,7 +137,7 @@ $tiempo_promedio_resolucion = $stmt_tiempo_resolucion->fetch(PDO::FETCH_ASSOC)['
                     </div>
                     <label for="prioridad">Prioridad:</label>
                     <div class="input-field">
-                        
+
                         <select name="prioridad" id="prioridad" class="browser-default">
                             <option value="" disabled selected>Todas</option>
                             <option value="baja">Baja</option>
@@ -120,12 +147,12 @@ $tiempo_promedio_resolucion = $stmt_tiempo_resolucion->fetch(PDO::FETCH_ASSOC)['
                     </div>
                     <label for="fecha_inicio">Fecha de Inicio:</label>
                     <div class="input-field">
-                        
+
                         <input type="date" name="fecha_inicio" id="fecha_inicio" class="datepicker">
                     </div>
                     <label for="fecha_fin">Fecha de Fin:</label>
                     <div class="input-field">
-                       
+
                         <input type="date" name="fecha_fin" id="fecha_fin" class="datepicker">
                     </div>
                     <button type="submit" class="btn blue">Generar Reporte</button>
